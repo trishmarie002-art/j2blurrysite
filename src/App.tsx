@@ -185,6 +185,7 @@ export default function App() {
 
     setIsUploading(true);
     const storageRef = ref(storage, `gallery/${Date.now()}_${file.name}`);
+    const fileType = file.type.startsWith('video/') ? 'video' : 'image';
 
     try {
       const snapshot = await uploadBytes(storageRef, file);
@@ -192,6 +193,7 @@ export default function App() {
       
       await addDoc(collection(db, 'gallery'), {
         url,
+        type: fileType,
         createdAt: new Date().toISOString(),
         storagePath: storageRef.fullPath
       });
@@ -200,7 +202,7 @@ export default function App() {
     } catch (error) {
       console.error("Upload error", error);
       setIsUploading(false);
-      alert("Failed to upload image. Please check your connection and try again.");
+      alert("Failed to upload file. Please check your connection and try again.");
     }
   };
 
@@ -515,7 +517,7 @@ export default function App() {
       {/* Gallery Section */}
       <section id="gallery" className="py-20 bg-black relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
+          <div className="flex flex-col md:flex-row justify-between items-center md:items-end mb-16 gap-8 text-center md:text-left">
             <div>
               <h2 className="text-red-600 font-black tracking-widest uppercase mb-3 text-xs">The Portfolio</h2>
               <h3 className="text-4xl md:text-6xl font-black italic tracking-tighter">LATEST WORK</h3>
@@ -527,7 +529,7 @@ export default function App() {
                   type="file" 
                   ref={fileInputRef}
                   className="hidden" 
-                  accept="image/*"
+                  accept="image/*,video/*"
                   onChange={handleFileUpload}
                   disabled={isUploading}
                 />
@@ -564,12 +566,24 @@ export default function App() {
                 transition={{ delay: i * 0.1 }}
                 className="group relative aspect-square overflow-hidden rounded-3xl bg-zinc-900"
               >
-                <img 
-                  src={item.url} 
-                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                  alt="Barber work"
-                  referrerPolicy="no-referrer"
-                />
+                {item.type === 'video' ? (
+                  <video 
+                    src={item.url} 
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                    controls={false}
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                  />
+                ) : (
+                  <img 
+                    src={item.url} 
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                    alt="Barber work"
+                    referrerPolicy="no-referrer"
+                  />
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                 
                 {isAdmin && (
@@ -586,7 +600,7 @@ export default function App() {
             {galleryItems.length === 0 && !isUploading && (
               <div className="col-span-full py-20 text-center border-2 border-dashed border-white/10 rounded-3xl">
                 <Camera className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-                <p className="text-gray-500 font-bold uppercase tracking-widest">No photos in the gallery yet.</p>
+                <p className="text-gray-500 font-bold uppercase tracking-widest">No photos or videos in the gallery yet.</p>
                 {isAdmin && <p className="text-sm text-gray-600 mt-2">Upload your first cut above!</p>}
               </div>
             )}
@@ -609,10 +623,7 @@ export default function App() {
                 href="https://j2blurry.setmore.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                id="Anywhere_button_iframe" 
-                className="anywhere-book-now-button bg-red-600 hover:bg-red-700 text-white font-black text-xl px-12 py-6 rounded-2xl transition-all transform hover:scale-105 shadow-[0_0_50px_rgba(220,38,38,0.3)] flex items-center justify-center" 
-                data-booking-url="https://j2blurry.setmore.com" 
-                data-new-tab="false"
+                className="bg-red-600 hover:bg-red-700 text-white font-black text-xl px-12 py-6 rounded-2xl transition-all transform hover:scale-105 shadow-[0_0_50px_rgba(220,38,38,0.3)] flex items-center justify-center" 
               > 
                 BOOK NOW 
               </a>

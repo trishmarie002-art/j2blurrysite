@@ -22,6 +22,8 @@ export interface Booking {
 export interface GalleryItem {
   id: string;
   url: string;
+  type: 'image' | 'video';
   caption?: string;
   createdAt: string;
+  storagePath?: string;
 }
