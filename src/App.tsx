@@ -224,6 +224,14 @@ export default function App() {
     setContactError(null);
 
     try {
+      // Backup to Firestore
+      await addDoc(collection(db, 'contacts'), {
+        name: contactName,
+        email: contactEmail,
+        message: contactMessage,
+        createdAt: new Date().toISOString(),
+      });
+
       const response = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -358,7 +366,7 @@ export default function App() {
             </AnimatePresence>
           </div>
 
-        <div className="relative z-20 text-center px-4 max-w-4xl">
+        <div className="relative z-20 text-center px-4 max-w-4xl mt-20">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -628,14 +636,17 @@ export default function App() {
             <h2 className="text-red-600 font-black tracking-widest uppercase mb-4">Secure Your Spot</h2>
             <h3 className="text-5xl md:text-7xl font-black italic tracking-tighter mb-12 uppercase">Book Appointment</h3>
             <div className="flex justify-center">
-              <button 
+              <a 
+                href="https://j2blurry.setmore.com"
+                target="_blank"
+                rel="noopener noreferrer"
                 id="Anywhere_button_iframe" 
-                className="anywhere-book-now-button bg-red-600 hover:bg-red-700 text-white font-black text-2xl px-16 py-8 rounded-2xl transition-all transform hover:scale-105 shadow-[0_0_50px_rgba(220,38,38,0.3)]" 
+                className="anywhere-book-now-button bg-red-600 hover:bg-red-700 text-white font-black text-2xl px-16 py-8 rounded-2xl transition-all transform hover:scale-105 shadow-[0_0_50px_rgba(220,38,38,0.3)] flex items-center justify-center" 
                 data-booking-url="https://j2blurry.setmore.com" 
                 data-new-tab="false"
               > 
                 BOOK NOW 
-              </button>
+              </a>
             </div>
           </motion.div>
         </div>

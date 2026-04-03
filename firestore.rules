@@ -92,5 +92,10 @@ service cloud.firestore {
       allow read: if true; // Gallery is public
       allow write: if isAdmin();
     }
+
+    match /contacts/{contactId} {
+      allow read: if isAdmin(); // Only admin can read messages
+      allow create: if true; // Anyone can send a message
+    }
   }
 }

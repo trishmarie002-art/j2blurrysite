@@ -39,6 +39,18 @@
         "createdAt": { "type": "string", "format": "date-time", "description": "When the image was uploaded." }
       },
       "required": ["url", "createdAt"]
+    },
+    "Contact": {
+      "title": "Contact",
+      "description": "A message from the contact form.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "The name of the sender." },
+        "email": { "type": "string", "description": "The email of the sender." },
+        "message": { "type": "string", "description": "The message content." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the message was sent." }
+      },
+      "required": ["name", "email", "message", "createdAt"]
     }
   },
   "firestore": {
@@ -53,6 +65,10 @@
     "/gallery/{galleryId}": {
       "schema": "GalleryItem",
       "description": "Collection of gallery images."
+    },
+    "/contacts/{contactId}": {
+      "schema": "Contact",
+      "description": "Collection of contact form messages."
     }
   }
 }

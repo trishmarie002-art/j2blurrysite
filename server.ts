@@ -18,8 +18,8 @@ async function startServer() {
     const { name, email, message } = req.body;
 
     if (!resend) {
-      console.error("RESEND_API_KEY is not set");
-      return res.status(500).json({ error: "Email service not configured" });
+      console.warn("RESEND_API_KEY is not set. Email not sent, but data should be in Firestore.");
+      return res.status(200).json({ success: true, message: "Stored in backup (Email service not configured)" });
     }
 
     try {
@@ -40,32 +40,6 @@ async function startServer() {
     } catch (error) {
       console.error("Error sending email:", error);
       res.status(500).json({ error: "Failed to send email" });
-    }
-  });
-
-  // Instagram API Route
-  app.get("/api/instagram", async (req, res) => {
-    const token = process.env.INSTAGRAM_ACCESS_TOKEN;
-
-    if (!token) {
-      return res.status(400).json({ error: "Instagram Access Token not configured" });
-    }
-
-    try {
-      const response = await fetch(
-        `https://graph.instagram.com/me/media?fields=id,caption,media_type,media_url,permalink,thumbnail_url,timestamp&access_token=${token}`
-      );
-      const data = await response.json();
-
-      if (data.error) {
-        console.error("Instagram API Error:", data.error);
-        return res.status(500).json({ error: data.error.message });
-      }
-
-      res.json(data);
-    } catch (error) {
-      console.error("Error fetching Instagram feed:", error);
-      res.status(500).json({ error: "Failed to fetch Instagram feed" });
     }
   });
 
