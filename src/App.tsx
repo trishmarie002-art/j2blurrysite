@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Scissors, 
@@ -20,7 +20,10 @@ import {
   Plus,
   Trash2,
   LogIn,
-  LogOut
+  LogOut,
+  Star,
+  HelpCircle,
+  Map as MapIcon
 } from 'lucide-react';
 import { db, auth, storage } from './firebase';
 import { 
@@ -52,6 +55,7 @@ import { Service, Booking, GalleryItem } from './types';
 const BARBER_NAME = "Jacob";
 const BUSINESS_NAME = "J 2Blurry";
 const PHONE_NUMBER = "2105088599";
+const ADDRESS = "520 Nottingham Dr. Poteet, TX 78065";
 const ADMIN_EMAIL = "garzatricia89@gmail.com";
 const SERVICES: Service[] = [
   { id: '1', name: 'The Signature Fade', description: 'Precision fade with a crisp lineup and neck shave.', price: 35, duration: 45 },
@@ -114,14 +118,7 @@ export default function App() {
   const [uploadProgress, setUploadProgress] = useState(0);
 
   const isAdmin = user?.email === ADMIN_EMAIL;
-
-  // Contact Form State
-  const [contactName, setContactName] = useState('');
-  const [contactEmail, setContactEmail] = useState('');
-  const [contactMessage, setContactMessage] = useState('');
-  const [isSending, setIsSending] = useState(false);
-  const [contactSuccess, setContactSuccess] = useState(false);
-  const [contactError, setContactError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Chatbox State
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -178,6 +175,10 @@ export default function App() {
 
   const handleLogout = () => signOut(auth);
 
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !isAdmin) return;
@@ -218,47 +219,6 @@ export default function App() {
     }
   };
 
-  const handleContactSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSending(true);
-    setContactError(null);
-
-    try {
-      // Backup to Firestore
-      await addDoc(collection(db, 'contacts'), {
-        name: contactName,
-        email: contactEmail,
-        message: contactMessage,
-        createdAt: new Date().toISOString(),
-      });
-
-      const response = await fetch('/api/contact', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: contactName,
-          email: contactEmail,
-          message: contactMessage,
-        }),
-      });
-
-      if (response.ok) {
-        setContactSuccess(true);
-        setContactName('');
-        setContactEmail('');
-        setContactMessage('');
-        setTimeout(() => setContactSuccess(false), 5000);
-      } else {
-        setContactError("Failed to send message. Please try again later.");
-      }
-    } catch (error) {
-      console.error("Contact error", error);
-      setContactError("An error occurred. Please try again.");
-    } finally {
-      setIsSending(false);
-    }
-  };
-
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id);
     if (element) {
@@ -285,13 +245,13 @@ export default function App() {
 
             {/* Desktop Nav */}
             <div className="hidden md:flex items-center gap-8">
-              {['home', 'services', 'about', 'gallery', 'booking', 'contact'].map((item) => (
+              {['home', 'services', 'about', 'gallery', 'why-choose', 'faq', 'location', 'booking'].map((item) => (
                 <button
                   key={item}
                   onClick={() => scrollToSection(item)}
-                  className="text-sm font-bold uppercase tracking-widest hover:text-red-600 transition-colors"
+                  className="text-[10px] font-bold uppercase tracking-widest hover:text-red-600 transition-colors"
                 >
-                  {item}
+                  {item.replace('-', ' ')}
                 </button>
               ))}
               {user ? (
@@ -321,13 +281,13 @@ export default function App() {
               exit={{ opacity: 0, y: -20 }}
               className="md:hidden bg-black border-b border-white/10 px-4 py-8 flex flex-col gap-6 items-center"
             >
-              {['home', 'services', 'about', 'gallery', 'booking', 'contact'].map((item) => (
+              {['home', 'services', 'about', 'gallery', 'why-choose', 'faq', 'location', 'booking'].map((item) => (
                 <button
                   key={item}
                   onClick={() => scrollToSection(item)}
                   className="text-xl font-black uppercase italic hover:text-red-600"
                 >
-                  {item}
+                  {item.replace('-', ' ')}
                 </button>
               ))}
               {user ? (
@@ -372,15 +332,15 @@ export default function App() {
             whileInView={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8 }}
           >
-            <h2 className="text-red-600 font-black tracking-[0.3em] uppercase mb-4">Master Barber {BARBER_NAME} in Poteet, Texas</h2>
-            <h1 className="text-6xl md:text-8xl font-black italic tracking-tighter leading-none mb-4 uppercase">
+            <h2 className="text-red-600 font-black tracking-[0.3em] uppercase mb-4 text-[10px]">Master Barber {BARBER_NAME} in Poteet, Texas</h2>
+            <h1 className="text-4xl md:text-6xl font-black italic tracking-tighter leading-none mb-4 uppercase">
               Your Best Look<br />
               <span className="text-transparent stroke-text">Starts Here.</span>
             </h1>
-            <div className="inline-block bg-red-600 text-white px-4 py-1 rounded font-black text-xs tracking-widest uppercase mb-8">
+            <div className="inline-block bg-red-600 text-white px-3 py-1 rounded font-black text-[10px] tracking-widest uppercase mb-6">
               By Appointment Only
             </div>
-            <p className="text-xl text-gray-300 mb-12 max-w-2xl mx-auto font-medium">
+            <p className="text-lg text-gray-300 mb-10 max-w-2xl mx-auto font-medium">
               Sharp fades, crisp lines, and the confidence you deserve.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -438,7 +398,7 @@ export default function App() {
               }}
               className="relative group p-8 rounded-3xl bg-white/5 border border-white/5 hover:border-red-600/30 transition-colors"
             >
-              <div className="text-5xl md:text-7xl font-black text-red-600 mb-3 italic tracking-tighter drop-shadow-[0_0_15px_rgba(220,38,38,0.3)]">
+              <div className="text-3xl md:text-5xl font-black text-red-600 mb-3 italic tracking-tighter drop-shadow-[0_0_15px_rgba(220,38,38,0.3)]">
                 <Counter value={stat.value} suffix={stat.suffix} />
               </div>
               <div className="text-sm font-black uppercase tracking-[0.2em] text-gray-400 group-hover:text-white transition-colors">
@@ -451,14 +411,14 @@ export default function App() {
       </section>
 
       {/* Services Section */}
-      <section id="services" className="py-32 bg-zinc-950 relative">
+      <section id="services" className="py-20 bg-zinc-950 relative">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between items-end mb-20 gap-8">
+          <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
             <div>
-              <h2 className="text-red-600 font-black tracking-widest uppercase mb-4">The Menu</h2>
-              <h3 className="text-5xl md:text-7xl font-black italic tracking-tighter">PREMIUM SERVICES</h3>
+              <h2 className="text-red-600 font-black tracking-widest uppercase mb-3 text-xs">The Menu</h2>
+              <h3 className="text-4xl md:text-6xl font-black italic tracking-tighter">PREMIUM SERVICES</h3>
             </div>
-            <p className="max-w-md text-gray-400 font-medium">
+            <p className="max-w-md text-gray-400 font-medium text-sm">
               Every cut is a masterpiece. We take our time to ensure perfection, 
               using only the finest tools and products.
             </p>
@@ -471,19 +431,19 @@ export default function App() {
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.1 }}
-                className="group bg-black border border-white/5 p-8 rounded-3xl hover:border-red-600/50 transition-all cursor-pointer relative overflow-hidden"
+                className="group bg-black border border-white/5 p-6 rounded-2xl hover:border-red-600/50 transition-all cursor-pointer relative overflow-hidden"
                 onClick={() => {
                   scrollToSection('booking');
                 }}
               >
-                <div className="absolute top-0 right-0 p-6 text-red-600 opacity-20 group-hover:opacity-100 transition-opacity">
-                  <Scissors className="w-12 h-12 rotate-45" />
+                <div className="absolute top-0 right-0 p-4 text-red-600 opacity-20 group-hover:opacity-100 transition-opacity">
+                  <Scissors className="w-10 h-10 rotate-45" />
                 </div>
-                <div className="text-3xl font-black italic mb-2 group-hover:text-red-600 transition-colors">${service.price}</div>
-                <h4 className="text-2xl font-black uppercase mb-4">{service.name}</h4>
-                <p className="text-gray-400 mb-8 font-medium">{service.description}</p>
-                <div className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-widest">
-                  <Clock className="w-4 h-4" /> {service.duration} MINS
+                <div className="text-2xl font-black italic mb-1 group-hover:text-red-600 transition-colors">${service.price}</div>
+                <h4 className="text-xl font-black uppercase mb-3">{service.name}</h4>
+                <p className="text-gray-400 mb-6 font-medium text-sm">{service.description}</p>
+                <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                  <Clock className="w-3 h-3" /> {service.duration} MINS
                 </div>
               </motion.div>
             ))}
@@ -492,9 +452,9 @@ export default function App() {
       </section>
 
       {/* About Section */}
-      <section id="about" className="py-32 overflow-hidden">
+      <section id="about" className="py-20 overflow-hidden">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="grid md:grid-cols-2 gap-20 items-center">
+          <div className="grid md:grid-cols-2 gap-16 items-center">
             <motion.div
               initial={{ opacity: 0, x: -50 }}
               whileInView={{ opacity: 1, x: 0 }}
@@ -507,9 +467,9 @@ export default function App() {
                 alt="Jacob at work"
                 referrerPolicy="no-referrer"
               />
-              <div className="absolute -bottom-10 -right-10 bg-red-600 p-8 rounded-2xl z-20 shadow-xl hidden md:block">
-                <div className="text-4xl font-black italic">5 YEARS</div>
-                <div className="text-xs font-bold uppercase tracking-widest">OF CRAFTSMANSHIP</div>
+              <div className="absolute -bottom-10 -right-10 bg-red-600 p-6 rounded-2xl z-20 shadow-xl hidden md:block">
+                <div className="text-3xl font-black italic">5 YEARS</div>
+                <div className="text-[10px] font-bold uppercase tracking-widest">OF CRAFTSMANSHIP</div>
               </div>
             </motion.div>
 
@@ -517,33 +477,33 @@ export default function App() {
               initial={{ opacity: 0, x: 50 }}
               whileInView={{ opacity: 1, x: 0 }}
             >
-              <h2 className="text-red-600 font-black tracking-widest uppercase mb-4">About Jacob</h2>
-              <h3 className="text-5xl md:text-7xl font-black italic tracking-tighter mb-8 leading-none">MASTER BARBER</h3>
-              <p className="text-xl text-gray-300 mb-8 leading-relaxed font-medium">
+              <h2 className="text-red-600 font-black tracking-widest uppercase mb-3 text-xs">About Jacob</h2>
+              <h3 className="text-4xl md:text-6xl font-black italic tracking-tighter mb-6 leading-none">MASTER BARBER</h3>
+              <p className="text-lg text-gray-300 mb-6 leading-relaxed font-medium">
                 With a keen eye for detail and a passion for the classic art of grooming, 
                 Jacob has established himself as a premier barber dedicated to the craft of the perfect cut.
               </p>
-              <p className="text-gray-400 mb-12 font-medium">
+              <p className="text-gray-400 mb-10 font-medium text-sm">
                 His chair is more than just a place for a trim; it’s a destination for precision, 
                 style, and authentic conversation.
               </p>
               <div className="flex gap-6">
                 <a href={`tel:${PHONE_NUMBER}`} className="flex items-center gap-3 text-white hover:text-red-600 transition-colors">
-                  <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center">
-                    <Phone className="w-5 h-5" />
+                  <div className="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center">
+                    <Phone className="w-4 h-4" />
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">Call Now</div>
-                    <div className="font-bold">{PHONE_NUMBER}</div>
+                    <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Call Now</div>
+                    <div className="font-bold text-sm">{PHONE_NUMBER}</div>
                   </div>
                 </a>
                 <div className="flex items-center gap-3 text-white">
-                  <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center">
-                    <MapPin className="w-5 h-5" />
+                  <div className="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center">
+                    <MapPin className="w-4 h-4" />
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">Location</div>
-                    <div className="font-bold">Poteet, Texas</div>
+                    <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Location</div>
+                    <div className="font-bold text-sm">Poteet, Texas</div>
                   </div>
                 </div>
               </div>
@@ -553,27 +513,27 @@ export default function App() {
       </section>
 
       {/* Gallery Section */}
-      <section id="gallery" className="py-32 bg-black relative overflow-hidden">
+      <section id="gallery" className="py-20 bg-black relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between items-end mb-20 gap-8">
+          <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
             <div>
-              <h2 className="text-red-600 font-black tracking-widest uppercase mb-4">The Portfolio</h2>
-              <h3 className="text-5xl md:text-7xl font-black italic tracking-tighter">LATEST WORK</h3>
+              <h2 className="text-red-600 font-black tracking-widest uppercase mb-3 text-xs">The Portfolio</h2>
+              <h3 className="text-4xl md:text-6xl font-black italic tracking-tighter">LATEST WORK</h3>
             </div>
             
             {isAdmin && (
               <div className="relative">
                 <input 
                   type="file" 
-                  id="gallery-upload" 
+                  ref={fileInputRef}
                   className="hidden" 
                   accept="image/*"
                   onChange={handleFileUpload}
                   disabled={isUploading}
                 />
-                <label 
-                  htmlFor="gallery-upload"
-                  className={`bg-red-600 hover:bg-red-700 text-white px-8 py-4 rounded-full font-black text-sm flex items-center gap-2 cursor-pointer transition-all ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                <button 
+                  onClick={handleUploadClick}
+                  className={`bg-red-600 hover:bg-red-700 text-white px-8 py-4 rounded-full font-black text-sm flex items-center gap-2 transition-all ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {isUploading ? (
                     <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
@@ -581,12 +541,21 @@ export default function App() {
                     <Plus className="w-4 h-4" />
                   )}
                   {isUploading ? 'UPLOADING...' : 'UPLOAD NEW WORK'}
-                </label>
+                </button>
               </div>
+            )}
+
+            {!user && (
+              <button 
+                onClick={handleLogin}
+                className="text-gray-600 hover:text-red-600 transition-colors flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest"
+              >
+                <LogIn className="w-3 h-3" /> Admin
+              </button>
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {galleryItems.map((item, i) => (
               <motion.div
                 key={item.id}
@@ -626,22 +595,22 @@ export default function App() {
       </section>
 
       {/* Booking Section */}
-      <section id="booking" className="py-32 bg-black overflow-hidden border-y border-white/5">
+      <section id="booking" className="py-20 bg-black overflow-hidden border-y border-white/5">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
           >
-            <h2 className="text-red-600 font-black tracking-widest uppercase mb-4">Secure Your Spot</h2>
-            <h3 className="text-5xl md:text-7xl font-black italic tracking-tighter mb-12 uppercase">Book Appointment</h3>
+            <h2 className="text-red-600 font-black tracking-widest uppercase mb-3 text-xs">Secure Your Spot</h2>
+            <h3 className="text-4xl md:text-6xl font-black italic tracking-tighter mb-10 uppercase">Book Appointment</h3>
             <div className="flex justify-center">
               <a 
                 href="https://j2blurry.setmore.com"
                 target="_blank"
                 rel="noopener noreferrer"
                 id="Anywhere_button_iframe" 
-                className="anywhere-book-now-button bg-red-600 hover:bg-red-700 text-white font-black text-2xl px-16 py-8 rounded-2xl transition-all transform hover:scale-105 shadow-[0_0_50px_rgba(220,38,38,0.3)] flex items-center justify-center" 
+                className="anywhere-book-now-button bg-red-600 hover:bg-red-700 text-white font-black text-xl px-12 py-6 rounded-2xl transition-all transform hover:scale-105 shadow-[0_0_50px_rgba(220,38,38,0.3)] flex items-center justify-center" 
                 data-booking-url="https://j2blurry.setmore.com" 
                 data-new-tab="false"
               > 
@@ -652,107 +621,164 @@ export default function App() {
         </div>
       </section>
 
-      {/* Contact Section */}
-      <section id="contact" className="py-32 bg-zinc-950">
+      {/* Why Choose Section */}
+      <section id="why-choose" className="py-20 bg-zinc-950 relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
         <div className="max-w-7xl mx-auto px-4">
-          <div className="grid md:grid-cols-2 gap-20">
+          <div className="text-center mb-16">
+            <h2 className="text-red-600 font-black tracking-widest uppercase mb-3 text-xs">The Difference</h2>
+            <h3 className="text-4xl md:text-6xl font-black italic tracking-tighter uppercase">Why Choose J 2Blurry?</h3>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            {[
+              {
+                title: "Precision Craft",
+                desc: "Every cut is executed with surgical precision. We don't just cut hair; we sculpt it to fit your unique features.",
+                icon: <Scissors className="w-8 h-8" />
+              },
+              {
+                title: "Premium Experience",
+                desc: "Relax in a professional environment where your comfort is our priority. Authentic conversation and a sharp look.",
+                icon: <Star className="w-8 h-8" />
+              },
+              {
+                title: "The Blurry Blend",
+                desc: "Specializing in the smoothest fades in Poteet. If the blend isn't blurry, it's not a J 2Blurry signature cut.",
+                icon: <CheckCircle2 className="w-8 h-8" />
+              }
+            ].map((item, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.2 }}
+                className="p-8 rounded-[2rem] bg-black border border-white/5 hover:border-red-600/30 transition-all group"
+              >
+                <div className="w-14 h-14 bg-red-600/10 rounded-2xl flex items-center justify-center text-red-600 mb-6 group-hover:bg-red-600 group-hover:text-white transition-all">
+                  {item.icon}
+                </div>
+                <h4 className="text-xl font-black uppercase mb-3 italic tracking-tight">{item.title}</h4>
+                <p className="text-gray-400 font-medium leading-relaxed text-sm">{item.desc}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ Section */}
+      <section id="faq" className="py-20 bg-black">
+        <div className="max-w-4xl mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-red-600 font-black tracking-widest uppercase mb-3 text-xs">Common Questions</h2>
+            <h3 className="text-4xl md:text-6xl font-black italic tracking-tighter uppercase">F.A.Q.</h3>
+          </div>
+
+          <div className="space-y-4">
+            {[
+              {
+                q: "Do you take walk-ins?",
+                a: "To ensure every client gets the time and precision they deserve, J 2Blurry operates by appointment only. You can easily book your spot through our online platform."
+              },
+              {
+                q: "Where exactly are you located?",
+                a: `I am located at ${ADDRESS}. The exact directions are provided in your booking confirmation to ensure a private and focused grooming experience.`
+              },
+              {
+                q: "What is your cancellation policy?",
+                a: "We value your time and ours. Please provide at least 24 hours notice for cancellations. This allows us to offer the spot to another client on the waiting list."
+              },
+              {
+                q: "How long does a signature fade take?",
+                a: "A standard signature fade typically takes 45 minutes. We take our time to ensure the blend is perfectly 'blurry' and the lineup is crisp."
+              }
+            ].map((item, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.1 }}
+                className="bg-zinc-900/50 border border-white/5 rounded-3xl p-6 hover:border-white/10 transition-all"
+              >
+                <div className="flex gap-4">
+                  <HelpCircle className="w-6 h-6 text-red-600 shrink-0 mt-1" />
+                  <div>
+                    <h4 className="text-xl font-black uppercase italic mb-3 tracking-tight">{item.q}</h4>
+                    <p className="text-gray-400 font-medium leading-relaxed">{item.a}</p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Location Section */}
+      <section id="location" className="py-20 bg-zinc-950 relative overflow-hidden">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="grid md:grid-cols-2 gap-16 items-center">
             <motion.div
               initial={{ opacity: 0, x: -30 }}
               whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
             >
-              <h2 className="text-red-600 font-black tracking-widest uppercase mb-4">Get In Touch</h2>
-              <h3 className="text-5xl md:text-7xl font-black italic tracking-tighter mb-8">QUESTIONS?</h3>
-              <p className="text-xl text-gray-400 mb-12 font-medium">
-                Have a special request or want to book a mobile service? 
-                Drop me a message and I'll get back to you as soon as possible.
+              <h2 className="text-red-600 font-black tracking-widest uppercase mb-3 text-xs">Find The Shop</h2>
+              <h3 className="text-4xl md:text-6xl font-black italic tracking-tighter mb-6 uppercase">Location</h3>
+              <p className="text-lg text-gray-400 mb-10 font-medium leading-relaxed">
+                Located at {ADDRESS}. We provide a premium, 
+                private grooming experience in a professional setting.
               </p>
               
-              <div className="space-y-8">
+              <div className="space-y-6">
                 <div className="flex items-center gap-6 group">
-                  <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center group-hover:bg-red-600 transition-colors">
-                    <Phone className="w-6 h-6" />
+                  <div className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center group-hover:bg-red-600 transition-colors">
+                    <MapPin className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">Call or Text</div>
-                    <div className="text-2xl font-black italic">{PHONE_NUMBER}</div>
+                    <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Address</div>
+                    <div className="text-lg font-black italic uppercase">{ADDRESS}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-6 group">
-                  <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center group-hover:bg-red-600 transition-colors">
-                    <Mail className="w-6 h-6" />
+                  <div className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center group-hover:bg-red-600 transition-colors">
+                    <Phone className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">Email</div>
-                    <div className="text-2xl font-black italic">J2BLURRY@GMAIL.COM</div>
+                    <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Call or Text</div>
+                    <div className="text-xl font-black italic">{PHONE_NUMBER}</div>
                   </div>
                 </div>
+              </div>
+
+              <div className="mt-10">
+                <a 
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ADDRESS)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-3 bg-white text-black px-8 py-4 rounded-full font-black text-base hover:bg-red-600 hover:text-white transition-all transform hover:scale-105"
+                >
+                  <MapIcon className="w-4 h-4" /> GET DIRECTIONS
+                </a>
               </div>
             </motion.div>
 
             <motion.div
-              initial={{ opacity: 0, x: 30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              className="bg-black border border-white/10 p-8 md:p-12 rounded-[2rem]"
+              initial={{ opacity: 0, scale: 0.9 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              className="relative aspect-video md:aspect-square rounded-[2.5rem] overflow-hidden border border-white/10"
             >
-              {contactSuccess ? (
-                <div className="text-center py-12">
-                  <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <CheckCircle2 className="w-10 h-10 text-green-500" />
-                  </div>
-                  <h4 className="text-3xl font-black mb-4">MESSAGE SENT!</h4>
-                  <p className="text-gray-400">I'll get back to you shortly.</p>
-                </div>
-              ) : (
-                <form onSubmit={handleContactSubmit} className="space-y-6">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Name</label>
-                    <input 
-                      type="text" 
-                      required
-                      value={contactName}
-                      onChange={(e) => setContactName(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-6 py-4 focus:border-red-600 outline-none transition-all"
-                      placeholder="Your Name"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Email</label>
-                    <input 
-                      type="email" 
-                      required
-                      value={contactEmail}
-                      onChange={(e) => setContactEmail(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-6 py-4 focus:border-red-600 outline-none transition-all"
-                      placeholder="your@email.com"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Message</label>
-                    <textarea 
-                      required
-                      rows={4}
-                      value={contactMessage}
-                      onChange={(e) => setContactMessage(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-6 py-4 focus:border-red-600 outline-none transition-all resize-none"
-                      placeholder="How can I help you?"
-                    />
-                  </div>
-                  {contactError && (
-                    <div className="text-red-500 text-sm font-bold bg-red-500/10 p-4 rounded-xl flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4" /> {contactError}
-                    </div>
-                  )}
-                  <button 
-                    type="submit"
-                    disabled={isSending}
-                    className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white py-5 rounded-xl font-black text-lg transition-all flex items-center justify-center gap-2"
-                  >
-                    {isSending ? 'SENDING...' : <><Send className="w-5 h-5" /> SEND MESSAGE</>}
-                  </button>
-                </form>
-              )}
+              <iframe
+                title="Google Maps Location"
+                width="100%"
+                height="100%"
+                frameBorder="0"
+                scrolling="no"
+                marginHeight={0}
+                marginWidth={0}
+                src={`https://maps.google.com/maps?q=${encodeURIComponent(ADDRESS)}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
+                className="grayscale contrast-125 invert-[0.85] hue-rotate-180 opacity-60 hover:opacity-100 transition-opacity duration-700"
+              />
+              {/* Overlay styling for a "map" look */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent pointer-events-none" />
             </motion.div>
           </div>
         </div>
@@ -835,20 +861,23 @@ export default function App() {
                 <li><button onClick={() => scrollToSection('home')} className="hover:text-red-600 transition-colors">Home</button></li>
                 <li><button onClick={() => scrollToSection('services')} className="hover:text-red-600 transition-colors">Services</button></li>
                 <li><button onClick={() => scrollToSection('about')} className="hover:text-red-600 transition-colors">About Jacob</button></li>
+                <li><button onClick={() => scrollToSection('why-choose')} className="hover:text-red-600 transition-colors">Why Choose Us</button></li>
+                <li><button onClick={() => scrollToSection('faq')} className="hover:text-red-600 transition-colors">F.A.Q.</button></li>
+                <li><button onClick={() => scrollToSection('location')} className="hover:text-red-600 transition-colors">Location</button></li>
                 <li><button onClick={() => scrollToSection('booking')} className="hover:text-red-600 transition-colors">Book Now</button></li>
               </ul>
             </div>
 
             <div>
-              <h5 className="text-sm font-black uppercase tracking-widest mb-8 text-red-600">Contact Info</h5>
-              <ul className="space-y-4 font-bold text-gray-400">
+              <h5 className="text-[10px] font-black uppercase tracking-widest mb-6 text-red-600">Contact Info</h5>
+              <ul className="space-y-3 font-bold text-gray-400 text-sm">
                 <li className="flex items-center gap-3"><Phone className="w-4 h-4 text-red-600" /> {PHONE_NUMBER}</li>
-                <li className="flex items-center gap-3"><MapPin className="w-4 h-4 text-red-600" /> Poteet, Texas</li>
+                <li className="flex items-start gap-3"><MapPin className="w-4 h-4 text-red-600 mt-1" /> {ADDRESS}</li>
                 <li className="flex flex-col gap-1">
                   <div className="flex items-center gap-3"><Clock className="w-4 h-4 text-red-600" /> Mon - Thu: 6pm - 8pm</div>
                   <div className="ml-7">Fri - Sat: 10am - 5pm</div>
                   <div className="ml-7 text-red-600">Sun: Closed</div>
-                  <div className="ml-7 text-[10px] uppercase tracking-widest">By Appointment Only</div>
+                  <div className="ml-7 text-[9px] uppercase tracking-widest">By Appointment Only</div>
                 </li>
               </ul>
             </div>
