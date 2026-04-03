@@ -2,46 +2,57 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Scissors, 
-  Calendar, 
   Phone, 
   MapPin, 
   Instagram, 
-  Clock, 
   Menu, 
   X, 
-  ChevronRight,
-  Star,
-  CheckCircle2,
-  AlertCircle,
   MessageSquare,
   Send,
+  ExternalLink,
+  Clock,
   Mail,
-  ExternalLink
+  CheckCircle2,
+  AlertCircle,
+  ChevronRight,
+  Camera,
+  Upload,
+  Plus,
+  Trash2,
+  LogIn,
+  LogOut
 } from 'lucide-react';
+import { db, auth, storage } from './firebase';
+import { 
+  onAuthStateChanged, 
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  signOut,
+  User
+} from 'firebase/auth';
 import { 
   collection, 
   addDoc, 
-  getDocs, 
+  onSnapshot, 
   query, 
-  where, 
-  orderBy,
-  onSnapshot,
-  Timestamp
+  orderBy, 
+  deleteDoc, 
+  doc,
+  serverTimestamp 
 } from 'firebase/firestore';
 import { 
-  signInWithPopup, 
-  GoogleAuthProvider, 
-  onAuthStateChanged,
-  User
-} from 'firebase/auth';
-import { db, auth } from './firebase';
-import { format, addDays, isSameDay, parseISO } from 'date-fns';
-import { Service, Booking } from './types';
+  ref, 
+  uploadBytes, 
+  getDownloadURL, 
+  deleteObject 
+} from 'firebase/storage';
+import { Service, Booking, GalleryItem } from './types';
 
 // Constants
 const BARBER_NAME = "Jacob";
 const BUSINESS_NAME = "J 2Blurry";
 const PHONE_NUMBER = "2105088599";
+const ADMIN_EMAIL = "garzatricia89@gmail.com";
 const SERVICES: Service[] = [
   { id: '1', name: 'The Signature Fade', description: 'Precision fade with a crisp lineup and neck shave.', price: 35, duration: 45 },
   { id: '2', name: 'Beard Sculpting', description: 'Beard trim, shaping, and hot towel finish.', price: 20, duration: 30 },
@@ -50,22 +61,59 @@ const SERVICES: Service[] = [
   { id: '5', name: 'Edge Up', description: 'Quick cleanup around the edges and neck.', price: 15, duration: 15 },
 ];
 
-const TIME_SLOTS_WEEKDAY = ['18:00', '19:00'];
-const TIME_SLOTS_WEEKEND = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00'];
+const HERO_IMAGES = [
+  "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&q=80&w=2070",
+  "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?auto=format&fit=crop&q=80&w=2074",
+  "https://images.unsplash.com/photo-1621605815971-fbc98d665033?auto=format&fit=crop&q=80&w=2070"
+];
+
+// Counter Component
+const Counter = ({ value, suffix = "" }: { value: string, suffix?: string }) => {
+  const [count, setCount] = useState(0);
+  const target = parseFloat(value);
+  const isFloat = value.includes('.');
+
+  useEffect(() => {
+    let start = 0;
+    const duration = 2000; // 2 seconds
+    const startTime = performance.now();
+
+    const update = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // Ease out quad
+      const easeProgress = progress * (2 - progress);
+      
+      const current = easeProgress * target;
+      setCount(current);
+
+      if (progress < 1) {
+        requestAnimationFrame(update);
+      }
+    };
+
+    requestAnimationFrame(update);
+  }, [target]);
+
+  return (
+    <span>
+      {isFloat ? count.toFixed(1) : Math.floor(count)}
+      {suffix}
+    </span>
+  );
+};
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
-  const [selectedService, setSelectedService] = useState<Service | null>(null);
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [isBooking, setIsBooking] = useState(false);
-  const [bookingSuccess, setBookingSuccess] = useState(false);
-  const [bookingError, setBookingError] = useState<string | null>(null);
-  const [userBookings, setUserBookings] = useState<Booking[]>([]);
+  const [currentHeroImage, setCurrentHeroImage] = useState(0);
+  const [user, setUser] = useState<User | null>(null);
+  const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  const isAdmin = user?.email === ADMIN_EMAIL;
 
   // Contact Form State
   const [contactName, setContactName] = useState('');
@@ -78,32 +126,43 @@ export default function App() {
   // Chatbox State
   const [isChatOpen, setIsChatOpen] = useState(false);
 
-  const getTimeSlots = (date: Date) => {
-    const day = date.getDay();
-    if (day === 0) return []; // Sunday
-    if (day >= 1 && day <= 4) return TIME_SLOTS_WEEKDAY; // Mon-Thu
-    return TIME_SLOTS_WEEKEND; // Fri-Sat
-  };
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentHeroImage((prev) => (prev + 1) % HERO_IMAGES.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
 
-  const availableTimeSlots = getTimeSlots(selectedDate);
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.id = 'anywhere_book_now_script';
+    script.src = 'https://assets.setmore.com/integration/book-now/live/v1/anywhere-book-now.js';
+    script.async = true;
+    document.body.appendChild(script);
+
+    return () => {
+      const existingScript = document.getElementById('anywhere_book_now_script');
+      if (existingScript) {
+        document.body.removeChild(existingScript);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
-      if (user) {
-        setCustomerName(user.displayName || '');
-        // Fetch user bookings
-        const q = query(
-          collection(db, 'bookings'),
-          where('userId', '==', user.uid),
-          orderBy('createdAt', 'desc')
-        );
-        const unsubBookings = onSnapshot(q, (snapshot) => {
-          const bookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Booking));
-          setUserBookings(bookings);
-        });
-        return () => unsubBookings();
-      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const q = query(collection(db, 'gallery'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const items = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as GalleryItem[];
+      setGalleryItems(items);
     });
     return () => unsubscribe();
   }, []);
@@ -113,40 +172,49 @@ export default function App() {
     try {
       await signInWithPopup(auth, provider);
     } catch (error) {
-      console.error("Login failed", error);
+      console.error("Login error", error);
     }
   };
 
-  const handleBooking = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user || !selectedService || !selectedTime) return;
+  const handleLogout = () => signOut(auth);
 
-    setIsBooking(true);
-    setBookingError(null);
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !isAdmin) return;
 
-    const bookingData: Booking = {
-      userId: user.uid,
-      serviceId: selectedService.id,
-      serviceName: selectedService.name,
-      date: format(selectedDate, 'yyyy-MM-dd'),
-      time: selectedTime,
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-      customerName,
-      customerPhone,
-    };
+    setIsUploading(true);
+    const storageRef = ref(storage, `gallery/${Date.now()}_${file.name}`);
 
     try {
-      await addDoc(collection(db, 'bookings'), bookingData);
-      setBookingSuccess(true);
-      setSelectedService(null);
-      setSelectedTime(null);
-      setTimeout(() => setBookingSuccess(false), 5000);
+      const snapshot = await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(snapshot.ref);
+      
+      await addDoc(collection(db, 'gallery'), {
+        url,
+        createdAt: new Date().toISOString(),
+        storagePath: storageRef.fullPath
+      });
+      
+      setIsUploading(false);
     } catch (error) {
-      console.error("Booking failed", error);
-      setBookingError("Failed to book appointment. Please try again.");
-    } finally {
-      setIsBooking(false);
+      console.error("Upload error", error);
+      setIsUploading(false);
+      alert("Failed to upload image. Please check your connection and try again.");
+    }
+  };
+
+  const handleDeleteImage = async (item: GalleryItem & { storagePath?: string }) => {
+    if (!isAdmin || !window.confirm("Are you sure you want to delete this image?")) return;
+
+    try {
+      if (item.storagePath) {
+        const storageRef = ref(storage, item.storagePath);
+        await deleteObject(storageRef);
+      }
+      await deleteDoc(doc(db, 'gallery', item.id));
+    } catch (error) {
+      console.error("Delete error", error);
+      alert("Failed to delete image.");
     }
   };
 
@@ -194,7 +262,8 @@ export default function App() {
   return (
     <div className="min-h-screen bg-black text-white font-sans selection:bg-red-600 selection:text-white">
       {/* Navigation */}
-      <nav className="fixed top-0 w-full z-50 bg-black/80 backdrop-blur-md border-b border-white/10">
+      <header>
+        <nav className="fixed top-0 w-full z-50 bg-black/80 backdrop-blur-md border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
             <div className="flex items-center gap-2 cursor-pointer" onClick={() => scrollToSection('home')}>
@@ -208,7 +277,7 @@ export default function App() {
 
             {/* Desktop Nav */}
             <div className="hidden md:flex items-center gap-8">
-              {['home', 'services', 'about', 'booking', 'contact'].map((item) => (
+              {['home', 'services', 'about', 'gallery', 'booking', 'contact'].map((item) => (
                 <button
                   key={item}
                   onClick={() => scrollToSection(item)}
@@ -218,16 +287,12 @@ export default function App() {
                 </button>
               ))}
               {user ? (
-                <div className="flex items-center gap-4">
-                  <img src={user.photoURL || ''} alt="" className="w-8 h-8 rounded-full border border-red-600" />
-                  <button onClick={() => auth.signOut()} className="text-xs font-bold text-gray-400 hover:text-white">LOGOUT</button>
-                </div>
+                <button onClick={handleLogout} className="text-gray-400 hover:text-white transition-colors">
+                  <LogOut className="w-5 h-5" />
+                </button>
               ) : (
-                <button 
-                  onClick={handleLogin}
-                  className="bg-red-600 hover:bg-red-700 px-6 py-2 rounded-full font-bold text-sm transition-all transform hover:scale-105"
-                >
-                  SIGN IN
+                <button onClick={handleLogin} className="text-gray-400 hover:text-white transition-colors">
+                  <LogIn className="w-5 h-5" />
                 </button>
               )}
             </div>
@@ -248,7 +313,7 @@ export default function App() {
               exit={{ opacity: 0, y: -20 }}
               className="md:hidden bg-black border-b border-white/10 px-4 py-8 flex flex-col gap-6 items-center"
             >
-              {['home', 'services', 'about', 'booking', 'contact'].map((item) => (
+              {['home', 'services', 'about', 'gallery', 'booking', 'contact'].map((item) => (
                 <button
                   key={item}
                   onClick={() => scrollToSection(item)}
@@ -257,31 +322,41 @@ export default function App() {
                   {item}
                 </button>
               ))}
-              {!user && (
-                <button 
-                  onClick={handleLogin}
-                  className="bg-red-600 w-full py-4 rounded-xl font-bold"
-                >
-                  SIGN IN
+              {user ? (
+                <button onClick={handleLogout} className="flex items-center gap-2 text-gray-400 font-bold uppercase">
+                  <LogOut className="w-5 h-5" /> Logout
+                </button>
+              ) : (
+                <button onClick={handleLogin} className="flex items-center gap-2 text-gray-400 font-bold uppercase">
+                  <LogIn className="w-5 h-5" /> Admin Login
                 </button>
               )}
             </motion.div>
           )}
         </AnimatePresence>
       </nav>
+    </header>
 
-      {/* Hero Section */}
-      <section id="home" className="relative h-screen flex items-center justify-center overflow-hidden">
-        {/* Video Background Placeholder - Using a dark overlay and animated gradient for now as real video needs a source */}
-        <div className="absolute inset-0 z-0">
-          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black z-10" />
-          <img 
-            src="https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&q=80&w=2070" 
-            className="w-full h-full object-cover scale-110 animate-pulse-slow"
-            alt="Barber Shop"
-            referrerPolicy="no-referrer"
-          />
-        </div>
+      <main>
+        {/* Hero Section */}
+        <section id="home" className="relative h-screen flex items-center justify-center overflow-hidden">
+          {/* Slideshow Background */}
+          <div className="absolute inset-0 z-0">
+            <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black z-10" />
+            <AnimatePresence mode="wait">
+              <motion.img
+                key={currentHeroImage}
+                src={HERO_IMAGES[currentHeroImage]}
+                initial={{ opacity: 0, scale: 1.1 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 1.5, ease: "easeInOut" }}
+                className="w-full h-full object-cover"
+                alt={`Barber Shop Slide ${currentHeroImage + 1}`}
+                referrerPolicy="no-referrer"
+              />
+            </AnimatePresence>
+          </div>
 
         <div className="relative z-20 text-center px-4 max-w-4xl">
           <motion.div
@@ -289,31 +364,32 @@ export default function App() {
             whileInView={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8 }}
           >
-            <h2 className="text-red-600 font-black tracking-[0.3em] uppercase mb-4">Master Barber {BARBER_NAME}</h2>
-            <h1 className="text-6xl md:text-9xl font-black italic tracking-tighter leading-none mb-4">
-              SHARP CUTS.<br />
-              <span className="text-transparent stroke-text">NO BLUR.</span>
+            <h2 className="text-red-600 font-black tracking-[0.3em] uppercase mb-4">Master Barber {BARBER_NAME} in Poteet, Texas</h2>
+            <h1 className="text-6xl md:text-8xl font-black italic tracking-tighter leading-none mb-4 uppercase">
+              Your Best Look<br />
+              <span className="text-transparent stroke-text">Starts Here.</span>
             </h1>
             <div className="inline-block bg-red-600 text-white px-4 py-1 rounded font-black text-xs tracking-widest uppercase mb-8">
               By Appointment Only
             </div>
             <p className="text-xl text-gray-300 mb-12 max-w-2xl mx-auto font-medium">
-              San Antonio's premier destination for elite grooming. 
-              Elevate your style with the master of the craft.
+              Sharp fades, crisp lines, and the confidence you deserve.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <button 
-                onClick={() => scrollToSection('booking')}
+              <a 
+                href="https://j2blurry.setmore.com"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="bg-red-600 hover:bg-red-700 text-white px-10 py-5 rounded-full font-black text-lg flex items-center justify-center gap-2 transition-all transform hover:scale-105 shadow-[0_0_30px_rgba(220,38,38,0.4)]"
               >
-                BOOK YOUR CUT <ChevronRight className="w-5 h-5" />
-              </button>
-              <button 
-                onClick={() => scrollToSection('services')}
-                className="bg-white/10 hover:bg-white/20 backdrop-blur-md text-white px-10 py-5 rounded-full font-black text-lg transition-all"
+                BOOK NOW <ChevronRight className="w-5 h-5" />
+              </a>
+              <a 
+                href={`tel:${PHONE_NUMBER}`}
+                className="bg-white/10 hover:bg-white/20 backdrop-blur-md text-white px-10 py-5 rounded-full font-black text-lg flex items-center justify-center gap-2 transition-all transform hover:scale-105"
               >
-                VIEW SERVICES
-              </button>
+                <Phone className="w-5 h-5" /> CALL NOW
+              </a>
             </div>
           </motion.div>
         </div>
@@ -331,21 +407,36 @@ export default function App() {
       </section>
 
       {/* Stats Section */}
-      <section className="py-20 bg-black border-y border-white/5">
-        <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+      <section className="py-24 bg-black border-y border-white/5 relative overflow-hidden">
+        <div className="absolute inset-0 bg-red-600/5 blur-[120px] -z-10" />
+        <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 md:grid-cols-3 gap-12 text-center">
           {[
-            { label: 'Happy Clients', value: '100+' },
-            { label: 'Years Experience', value: '5' },
-            { label: 'Rating', value: '5.0' },
+            { label: 'Happy Clients', value: '100', suffix: '+' },
+            { label: 'Years Experience', value: '5', suffix: '' },
+            { label: 'Rating', value: '5.0', suffix: '' },
           ].map((stat, i) => (
             <motion.div
               key={i}
-              initial={{ opacity: 0 }}
-              whileInView={{ opacity: 1 }}
-              transition={{ delay: i * 0.1 }}
+              initial={{ opacity: 0, y: 40, scale: 0.8 }}
+              whileInView={{ opacity: 1, y: 0, scale: 1 }}
+              viewport={{ once: true, margin: "-100px" }}
+              whileHover={{ y: -10, scale: 1.05 }}
+              transition={{ 
+                duration: 0.8, 
+                delay: i * 0.2,
+                type: "spring",
+                stiffness: 100,
+                damping: 15
+              }}
+              className="relative group p-8 rounded-3xl bg-white/5 border border-white/5 hover:border-red-600/30 transition-colors"
             >
-              <div className="text-4xl md:text-5xl font-black text-red-600 mb-2 italic">{stat.value}</div>
-              <div className="text-xs font-bold uppercase tracking-widest text-gray-500">{stat.label}</div>
+              <div className="text-5xl md:text-7xl font-black text-red-600 mb-3 italic tracking-tighter drop-shadow-[0_0_15px_rgba(220,38,38,0.3)]">
+                <Counter value={stat.value} suffix={stat.suffix} />
+              </div>
+              <div className="text-sm font-black uppercase tracking-[0.2em] text-gray-400 group-hover:text-white transition-colors">
+                {stat.label}
+              </div>
+              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-12 h-1 bg-red-600 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-500" />
             </motion.div>
           ))}
         </div>
@@ -374,7 +465,6 @@ export default function App() {
                 transition={{ delay: i * 0.1 }}
                 className="group bg-black border border-white/5 p-8 rounded-3xl hover:border-red-600/50 transition-all cursor-pointer relative overflow-hidden"
                 onClick={() => {
-                  setSelectedService(service);
                   scrollToSection('booking');
                 }}
               >
@@ -419,17 +509,15 @@ export default function App() {
               initial={{ opacity: 0, x: 50 }}
               whileInView={{ opacity: 1, x: 0 }}
             >
-              <h2 className="text-red-600 font-black tracking-widest uppercase mb-4">The Barber</h2>
-              <h3 className="text-5xl md:text-7xl font-black italic tracking-tighter mb-8">MEET JACOB</h3>
+              <h2 className="text-red-600 font-black tracking-widest uppercase mb-4">About Jacob</h2>
+              <h3 className="text-5xl md:text-7xl font-black italic tracking-tighter mb-8 leading-none">MASTER BARBER</h3>
               <p className="text-xl text-gray-300 mb-8 leading-relaxed font-medium">
-                Founder of J 2Blurry, Jacob has dedicated his life to the art of barbering. 
-                Known for his surgical precision and eye for detail, he doesn't just cut hair—he 
-                builds confidence.
+                With a keen eye for detail and a passion for the classic art of grooming, 
+                Jacob has established himself as a premier barber dedicated to the craft of the perfect cut.
               </p>
               <p className="text-gray-400 mb-12 font-medium">
-                "My goal is to make sure every client walks out feeling like a new person. 
-                The name J 2Blurry comes from the smoothness of the blend. If it's not blurry, 
-                it's not a Jacob cut."
+                His chair is more than just a place for a trim; it’s a destination for precision, 
+                style, and authentic conversation.
               </p>
               <div className="flex gap-6">
                 <a href={`tel:${PHONE_NUMBER}`} className="flex items-center gap-3 text-white hover:text-red-600 transition-colors">
@@ -447,257 +535,109 @@ export default function App() {
                   </div>
                   <div>
                     <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">Location</div>
-                    <div className="font-bold">San Antonio, TX</div>
+                    <div className="font-bold">Poteet, Texas</div>
                   </div>
                 </div>
               </div>
             </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* Gallery Section */}
+      <section id="gallery" className="py-32 bg-black relative overflow-hidden">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex flex-col md:flex-row justify-between items-end mb-20 gap-8">
+            <div>
+              <h2 className="text-red-600 font-black tracking-widest uppercase mb-4">The Portfolio</h2>
+              <h3 className="text-5xl md:text-7xl font-black italic tracking-tighter">LATEST WORK</h3>
+            </div>
+            
+            {isAdmin && (
+              <div className="relative">
+                <input 
+                  type="file" 
+                  id="gallery-upload" 
+                  className="hidden" 
+                  accept="image/*"
+                  onChange={handleFileUpload}
+                  disabled={isUploading}
+                />
+                <label 
+                  htmlFor="gallery-upload"
+                  className={`bg-red-600 hover:bg-red-700 text-white px-8 py-4 rounded-full font-black text-sm flex items-center gap-2 cursor-pointer transition-all ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {isUploading ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                  ) : (
+                    <Plus className="w-4 h-4" />
+                  )}
+                  {isUploading ? 'UPLOADING...' : 'UPLOAD NEW WORK'}
+                </label>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+            {galleryItems.map((item, i) => (
+              <motion.div
+                key={item.id}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.1 }}
+                className="group relative aspect-square overflow-hidden rounded-3xl bg-zinc-900"
+              >
+                <img 
+                  src={item.url} 
+                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                  alt="Barber work"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                
+                {isAdmin && (
+                  <button 
+                    onClick={() => handleDeleteImage(item)}
+                    className="absolute top-4 right-4 p-3 bg-black/50 hover:bg-red-600 text-white rounded-full backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                )}
+              </motion.div>
+            ))}
+            
+            {galleryItems.length === 0 && !isUploading && (
+              <div className="col-span-full py-20 text-center border-2 border-dashed border-white/10 rounded-3xl">
+                <Camera className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                <p className="text-gray-500 font-bold uppercase tracking-widest">No photos in the gallery yet.</p>
+                {isAdmin && <p className="text-sm text-gray-600 mt-2">Upload your first cut above!</p>}
+              </div>
+            )}
           </div>
         </div>
       </section>
 
       {/* Booking Section */}
-      <section id="booking" className="py-32 bg-zinc-950">
-        <div className="max-w-4xl mx-auto px-4">
-          <div className="text-center mb-20">
+      <section id="booking" className="py-32 bg-black overflow-hidden border-y border-white/5">
+        <div className="max-w-7xl mx-auto px-4 text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
             <h2 className="text-red-600 font-black tracking-widest uppercase mb-4">Secure Your Spot</h2>
-            <h3 className="text-5xl md:text-7xl font-black italic tracking-tighter mb-8">BOOK APPOINTMENT</h3>
-            {!user && (
-              <div className="bg-red-600/10 border border-red-600/20 p-8 rounded-3xl">
-                <p className="text-lg mb-6 font-medium">Please sign in to book your appointment and manage your cuts.</p>
-                <button 
-                  onClick={handleLogin}
-                  className="bg-red-600 hover:bg-red-700 px-12 py-4 rounded-full font-black text-lg transition-all"
-                >
-                  SIGN IN WITH GOOGLE
-                </button>
-              </div>
-            )}
-          </div>
-
-          {user && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="bg-black border border-white/10 p-8 md:p-12 rounded-[2rem] shadow-2xl"
-            >
-              {bookingSuccess ? (
-                <div className="text-center py-12">
-                  <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <CheckCircle2 className="w-10 h-10 text-green-500" />
-                  </div>
-                  <h4 className="text-3xl font-black mb-4">BOOKING CONFIRMED!</h4>
-                  <p className="text-gray-400 mb-8">Jacob will see you soon. Check your email for details.</p>
-                  <button 
-                    onClick={() => setBookingSuccess(false)}
-                    className="text-red-600 font-bold uppercase tracking-widest hover:underline"
-                  >
-                    Book Another Cut
-                  </button>
-                </div>
-              ) : (
-                <form onSubmit={handleBooking} className="space-y-8">
-                  {/* Service Selection */}
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Select Service</label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {SERVICES.map((service) => (
-                        <button
-                          key={service.id}
-                          type="button"
-                          onClick={() => setSelectedService(service)}
-                          className={`p-4 rounded-2xl border text-left transition-all ${
-                            selectedService?.id === service.id 
-                            ? 'border-red-600 bg-red-600/10' 
-                            : 'border-white/10 hover:border-white/30'
-                          }`}
-                        >
-                          <div className="font-black uppercase">{service.name}</div>
-                          <div className="text-sm text-gray-400">${service.price} • {service.duration}m</div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Date Selection */}
-                  <div className="grid md:grid-cols-2 gap-8">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Select Date</label>
-                      <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide">
-                        {[0, 1, 2, 3, 4, 5, 6].map((days) => {
-                          const date = addDays(new Date(), days);
-                          const isSelected = isSameDay(date, selectedDate);
-                          return (
-                            <button
-                              key={days}
-                              type="button"
-                              onClick={() => setSelectedDate(date)}
-                              className={`flex-shrink-0 w-16 h-20 rounded-2xl flex flex-col items-center justify-center transition-all ${
-                                isSelected ? 'bg-red-600 text-white' : 'bg-white/5 text-gray-400'
-                              }`}
-                            >
-                              <span className="text-[10px] font-bold uppercase">{format(date, 'EEE')}</span>
-                              <span className="text-xl font-black">{format(date, 'd')}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Time Selection */}
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Select Time</label>
-                      <div className="grid grid-cols-3 gap-2">
-                        {availableTimeSlots.length > 0 ? (
-                          availableTimeSlots.map((time) => (
-                            <button
-                              key={time}
-                              type="button"
-                              onClick={() => setSelectedTime(time)}
-                              className={`py-3 rounded-xl text-sm font-bold transition-all ${
-                                selectedTime === time ? 'bg-red-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'
-                              }`}
-                            >
-                              {time}
-                            </button>
-                          ))
-                        ) : (
-                          <div className="col-span-3 py-4 text-center text-gray-500 font-bold uppercase text-xs tracking-widest">
-                            Closed on Sundays
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Contact Info */}
-                  <div className="grid md:grid-cols-2 gap-8">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Full Name</label>
-                      <input 
-                        type="text" 
-                        required
-                        value={customerName}
-                        onChange={(e) => setCustomerName(e.target.value)}
-                        className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 focus:border-red-600 outline-none transition-all"
-                        placeholder="Your Name"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Phone Number</label>
-                      <input 
-                        type="tel" 
-                        required
-                        value={customerPhone}
-                        onChange={(e) => setCustomerPhone(e.target.value)}
-                        className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 focus:border-red-600 outline-none transition-all"
-                        placeholder="(210) 000-0000"
-                      />
-                    </div>
-                  </div>
-
-                  {bookingError && (
-                    <div className="flex items-center gap-2 text-red-500 text-sm font-bold bg-red-500/10 p-4 rounded-xl">
-                      <AlertCircle className="w-4 h-4" /> {bookingError}
-                    </div>
-                  )}
-
-                  <button 
-                    type="submit"
-                    disabled={isBooking || !selectedService || !selectedTime}
-                    className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-6 rounded-2xl font-black text-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-xl"
-                  >
-                    {isBooking ? 'BOOKING...' : 'CONFIRM APPOINTMENT'}
-                  </button>
-                </form>
-              )}
-            </motion.div>
-          )}
-
-          {/* User Bookings List */}
-          {user && userBookings.length > 0 && (
-            <div className="mt-20">
-              <h4 className="text-2xl font-black italic mb-8 uppercase tracking-tighter">Your Appointments</h4>
-              <div className="space-y-4">
-                {userBookings.map((booking) => (
-                  <div key={booking.id} className="bg-white/5 border border-white/10 p-6 rounded-2xl flex justify-between items-center">
-                    <div>
-                      <div className="font-black uppercase text-lg">{booking.serviceName}</div>
-                      <div className="text-gray-400 text-sm">
-                        {format(parseISO(booking.date), 'MMMM d, yyyy')} at {booking.time}
-                      </div>
-                    </div>
-                    <div className={`px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                      booking.status === 'confirmed' ? 'bg-green-500/20 text-green-500' : 
-                      booking.status === 'cancelled' ? 'bg-red-500/20 text-red-500' : 
-                      'bg-yellow-500/20 text-yellow-500'
-                    }`}>
-                      {booking.status}
-                    </div>
-                  </div>
-                ))}
-              </div>
+            <h3 className="text-5xl md:text-7xl font-black italic tracking-tighter mb-12 uppercase">Book Appointment</h3>
+            <div className="flex justify-center">
+              <button 
+                id="Anywhere_button_iframe" 
+                className="anywhere-book-now-button bg-red-600 hover:bg-red-700 text-white font-black text-2xl px-16 py-8 rounded-2xl transition-all transform hover:scale-105 shadow-[0_0_50px_rgba(220,38,38,0.3)]" 
+                data-booking-url="https://j2blurry.setmore.com" 
+                data-new-tab="false"
+              > 
+                BOOK NOW 
+              </button>
             </div>
-          )}
-        </div>
-      </section>
-
-      {/* Instagram Section */}
-      <section id="instagram" className="py-32 bg-black overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="text-center mb-20">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-            >
-              <h2 className="text-red-600 font-black tracking-widest uppercase mb-4">Follow the Blend</h2>
-              <h3 className="text-5xl md:text-7xl font-black italic tracking-tighter mb-8">INSTAGRAM FEED</h3>
-              <a 
-                href="https://www.instagram.com/jay.2blurry/" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-gray-400 hover:text-red-600 font-bold transition-colors"
-              >
-                @jay.2blurry <ExternalLink className="w-4 h-4" />
-              </a>
-            </motion.div>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              "https://images.unsplash.com/photo-1599351431202-1e0f0137899a?auto=format&fit=crop&q=80&w=600",
-              "https://images.unsplash.com/photo-1621605815841-aa88c82b0280?auto=format&fit=crop&q=80&w=600",
-              "https://images.unsplash.com/photo-1593702295094-272a9f44503f?auto=format&fit=crop&q=80&w=600",
-              "https://images.unsplash.com/photo-1512690196252-741d2fd35ad0?auto=format&fit=crop&q=80&w=600",
-              "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&q=80&w=600",
-              "https://images.unsplash.com/photo-1622286332618-f2803b1950d4?auto=format&fit=crop&q=80&w=600",
-              "https://images.unsplash.com/photo-1592647425447-11e1f3fdc405?auto=format&fit=crop&q=80&w=600",
-              "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?auto=format&fit=crop&q=80&w=600"
-            ].map((img, i) => (
-              <motion.a
-                key={i}
-                href="https://www.instagram.com/jay.2blurry/"
-                target="_blank"
-                rel="noopener noreferrer"
-                initial={{ opacity: 0, scale: 0.9 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-                className="aspect-square relative group overflow-hidden rounded-2xl"
-              >
-                <img 
-                  src={img} 
-                  alt="Instagram Post" 
-                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                  referrerPolicy="no-referrer"
-                />
-                <div className="absolute inset-0 bg-red-600/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <Instagram className="text-white w-8 h-8" />
-                </div>
-              </motion.a>
-            ))}
-          </div>
+          </motion.div>
         </div>
       </section>
 
@@ -865,7 +805,7 @@ export default function App() {
                 </span>
               </div>
               <p className="text-gray-400 max-w-sm mb-8 font-medium">
-                The sharpest cuts in San Antonio. Jacob brings years of expertise 
+                The sharpest cuts in Poteet, Texas. Jacob brings years of expertise 
                 and a passion for perfection to every chair.
               </p>
               <div className="flex gap-4">
@@ -889,10 +829,10 @@ export default function App() {
             </div>
 
             <div>
-              <h5 className="text-sm font-black uppercase tracking-widest mb-8 text-red-600">Contact</h5>
+              <h5 className="text-sm font-black uppercase tracking-widest mb-8 text-red-600">Contact Info</h5>
               <ul className="space-y-4 font-bold text-gray-400">
                 <li className="flex items-center gap-3"><Phone className="w-4 h-4 text-red-600" /> {PHONE_NUMBER}</li>
-                <li className="flex items-center gap-3"><MapPin className="w-4 h-4 text-red-600" /> San Antonio, TX</li>
+                <li className="flex items-center gap-3"><MapPin className="w-4 h-4 text-red-600" /> Poteet, Texas</li>
                 <li className="flex flex-col gap-1">
                   <div className="flex items-center gap-3"><Clock className="w-4 h-4 text-red-600" /> Mon - Thu: 6pm - 8pm</div>
                   <div className="ml-7">Fri - Sat: 10am - 5pm</div>
@@ -903,8 +843,21 @@ export default function App() {
             </div>
           </div>
 
-          <div className="pt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6 text-xs font-bold text-gray-600 uppercase tracking-widest">
-            <div>© 2024 J 2BLURRY BARBER SHOP. ALL RIGHTS RESERVED.</div>
+          <div className="pt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6 text-xs font-bold text-gray-600 uppercase tracking-widest text-center md:text-left">
+            <div className="space-y-2">
+              <div>© 2026 J 2BLURRY BARBER SHOP. ALL RIGHTS RESERVED.</div>
+              <div>
+                WEBSITE CREATED BY{' '}
+                <a 
+                  href="https://www.facebook.com/profile.php?id=61567294089581" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-red-600 hover:text-white transition-colors underline decoration-red-600/30 underline-offset-4"
+                >
+                  TRISHMARIE DIGITAL
+                </a>
+              </div>
+            </div>
             <div className="flex gap-8">
               <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>
               <a href="#" className="hover:text-white transition-colors">Terms of Service</a>
@@ -912,6 +865,7 @@ export default function App() {
           </div>
         </div>
       </footer>
+    </main>
 
       {/* Custom Styles */}
       <style>{`

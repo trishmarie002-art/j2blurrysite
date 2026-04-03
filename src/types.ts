@@ -18,3 +18,10 @@ export interface Booking {
   customerName: string;
   customerPhone: string;
 }
+
+export interface GalleryItem {
+  id: string;
+  url: string;
+  caption?: string;
+  createdAt: string;
+}

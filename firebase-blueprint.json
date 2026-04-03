@@ -28,6 +28,17 @@
         "duration": { "type": "number", "description": "The duration of the service in minutes." }
       },
       "required": ["name", "description", "price", "duration"]
+    },
+    "GalleryItem": {
+      "title": "GalleryItem",
+      "description": "An image in the barber's gallery.",
+      "type": "object",
+      "properties": {
+        "url": { "type": "string", "description": "The URL of the image in storage." },
+        "caption": { "type": "string", "description": "An optional caption for the image." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the image was uploaded." }
+      },
+      "required": ["url", "createdAt"]
     }
   },
   "firestore": {
@@ -38,6 +49,10 @@
     "/services/{serviceId}": {
       "schema": "Service",
       "description": "Collection of available services."
+    },
+    "/gallery/{galleryId}": {
+      "schema": "GalleryItem",
+      "description": "Collection of gallery images."
     }
   }
 }

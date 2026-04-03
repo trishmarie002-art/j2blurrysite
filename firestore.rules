@@ -87,5 +87,10 @@ service cloud.firestore {
       allow read: if true; // Services are public
       allow write: if isAdmin() && isValidService(request.resource.data);
     }
+
+    match /gallery/{galleryId} {
+      allow read: if true; // Gallery is public
+      allow write: if isAdmin();
+    }
   }
 }
