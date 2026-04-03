@@ -1,0 +1,91 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: bookings
+    // Document ID: {bookingId}
+    // Fields:
+    //   - userId: string (required) - UID of the user
+    //   - serviceId: string (required) - ID of the service
+    //   - serviceName: string (required) - Name of the service
+    //   - date: string (required) - YYYY-MM-DD
+    //   - time: string (required) - HH:MM
+    //   - status: string (required) - pending, confirmed, cancelled
+    //   - createdAt: string (required) - ISO 8601
+    //   - customerName: string (required) - Name of the customer
+    //   - customerPhone: string (required) - Phone number
+    //
+    // Collection: services
+    // Document ID: {serviceId}
+    // Fields:
+    //   - name: string (required)
+    //   - description: string (required)
+    //   - price: number (required)
+    //   - duration: number (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "garzatricia89@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidBooking(data) {
+      return data.keys().hasAll(['userId', 'serviceId', 'serviceName', 'date', 'time', 'status', 'createdAt', 'customerName', 'customerPhone']) &&
+             data.userId is string &&
+             data.serviceId is string &&
+             data.serviceName is string &&
+             data.date is string &&
+             data.time is string &&
+             data.status in ['pending', 'confirmed', 'cancelled'] &&
+             data.createdAt is string &&
+             data.customerName is string && data.customerName.size() > 0 && data.customerName.size() < 100 &&
+             data.customerPhone is string && data.customerPhone.size() >= 10 && data.customerPhone.size() <= 15;
+    }
+
+    function isValidService(data) {
+      return data.keys().hasAll(['name', 'description', 'price', 'duration']) &&
+             data.name is string && data.name.size() > 0 &&
+             data.description is string &&
+             data.price is number && data.price >= 0 &&
+             data.duration is number && data.duration > 0;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create, update: if isOwner(userId) && 
+        (!('role' in request.resource.data) || request.resource.data.role == 'customer' || isAdmin());
+    }
+
+    match /bookings/{bookingId} {
+      allow read: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin());
+      allow create: if isAuthenticated() && isOwner(request.resource.data.userId) && isValidBooking(request.resource.data);
+      allow update: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin()) && isValidBooking(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /services/{serviceId} {
+      allow read: if true; // Services are public
+      allow write: if isAdmin() && isValidService(request.resource.data);
+    }
+  }
+}

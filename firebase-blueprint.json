@@ -1,0 +1,43 @@
+{
+  "entities": {
+    "Booking": {
+      "title": "Booking",
+      "description": "A booking for a barber service.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "The UID of the user who made the booking." },
+        "serviceId": { "type": "string", "description": "The ID of the service booked." },
+        "serviceName": { "type": "string", "description": "The name of the service booked." },
+        "date": { "type": "string", "format": "date", "description": "The date of the booking (YYYY-MM-DD)." },
+        "time": { "type": "string", "description": "The time of the booking (HH:MM)." },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "cancelled"], "description": "The status of the booking." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the booking was created." },
+        "customerName": { "type": "string", "description": "The name of the customer." },
+        "customerPhone": { "type": "string", "description": "The phone number of the customer." }
+      },
+      "required": ["userId", "serviceId", "date", "time", "status", "createdAt", "customerName", "customerPhone"]
+    },
+    "Service": {
+      "title": "Service",
+      "description": "A service offered by the barber.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "The name of the service." },
+        "description": { "type": "string", "description": "A description of the service." },
+        "price": { "type": "number", "description": "The price of the service." },
+        "duration": { "type": "number", "description": "The duration of the service in minutes." }
+      },
+      "required": ["name", "description", "price", "duration"]
+    }
+  },
+  "firestore": {
+    "/bookings/{bookingId}": {
+      "schema": "Booking",
+      "description": "Collection of all bookings."
+    },
+    "/services/{serviceId}": {
+      "schema": "Service",
+      "description": "Collection of available services."
+    }
+  }
+}
